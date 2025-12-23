@@ -73,23 +73,23 @@ const CineMatchApp = () => {
 
   const loadUsers = async () => {
     try {
-      const result = await window.storage.get('users');
-      if (result) setUsers(JSON.parse(result.value));
+      const result = localStorage.getItem('users');
+      if (result) setUsers(JSON.parse(result));
     } catch (error) {
       console.log('Aucun utilisateur');
     }
   };
 
   const saveUsers = async (updatedUsers) => {
-    await window.storage.set('users', JSON.stringify(updatedUsers));
+    localStorage.setItem('users', JSON.stringify(updatedUsers));
     setUsers(updatedUsers);
   };
 
   const loadFriendRequests = async () => {
     try {
-      const result = await window.storage.get('friendRequests');
+      const result = localStorage.getItem('friendRequests');
       if (result) {
-        const allRequests = JSON.parse(result.value);
+        const allRequests = JSON.parse(result);
         setFriendRequests(allRequests.filter(req => req.toUserId === currentUser.id));
       }
     } catch (error) {
@@ -98,7 +98,7 @@ const CineMatchApp = () => {
   };
 
   const saveFriendRequests = async (requests) => {
-    await window.storage.set('friendRequests', JSON.stringify(requests));
+    localStorage.setItem('friendRequests', JSON.stringify(requests));
     if (currentUser) {
       setFriendRequests(requests.filter(req => req.toUserId === currentUser.id));
     }
@@ -106,23 +106,23 @@ const CineMatchApp = () => {
 
   const loadPosts = async () => {
     try {
-      const result = await window.storage.get('posts');
-      if (result) setPosts(JSON.parse(result.value));
+      const result = localStorage.getItem('posts');
+      if (result) setPosts(JSON.parse(result));
     } catch (error) {
       console.log('Aucun post');
     }
   };
 
   const savePosts = async (updatedPosts) => {
-    await window.storage.set('posts', JSON.stringify(updatedPosts));
+    localStorage.setItem('posts', JSON.stringify(updatedPosts));
     setPosts(updatedPosts);
   };
 
   const loadChats = async () => {
     try {
-      const result = await window.storage.get('chats');
+      const result = localStorage.getItem('chats');
       if (result) {
-        const allChats = JSON.parse(result.value);
+        const allChats = JSON.parse(result);
         setChats(allChats.filter(chat => chat.participants.includes(currentUser.id)));
       }
     } catch (error) {
@@ -131,7 +131,7 @@ const CineMatchApp = () => {
   };
 
   const saveChats = async (updatedChats) => {
-    await window.storage.set('chats', JSON.stringify(updatedChats));
+    localStorage.setItem('chats', JSON.stringify(updatedChats));
     setChats(updatedChats.filter(chat => chat.participants.includes(currentUser.id)));
   };
 
@@ -455,9 +455,9 @@ Réponds en JSON :
   // Charger les notifications
   const loadNotifications = async () => {
     try {
-      const result = await window.storage.get('notifications');
+      const result = localStorage.getItem('notifications');
       if (result) {
-        const allNotifs = JSON.parse(result.value);
+        const allNotifs = JSON.parse(result);
         setNotifications(allNotifs.filter(n => n.userId === currentUser.id));
       }
     } catch (error) {
@@ -468,8 +468,8 @@ Réponds en JSON :
   // Ajouter une notification
   const addNotification = async (userId, message, type) => {
     try {
-      const result = await window.storage.get('notifications');
-      const allNotifs = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('notifications');
+      const allNotifs = result ? JSON.parse(result) : [];
       const newNotif = {
         id: Date.now().toString(),
         userId: userId,
@@ -478,7 +478,7 @@ Réponds en JSON :
         read: false,
         createdAt: new Date().toISOString()
       };
-      await window.storage.set('notifications', JSON.stringify([...allNotifs, newNotif]));
+      localStorage.setItem('notifications', JSON.stringify([...allNotifs, newNotif]));
       if (userId === currentUser.id) {
         setNotifications([newNotif, ...notifications]);
       }
@@ -490,10 +490,10 @@ Réponds en JSON :
   // Marquer comme lu
   const markNotificationRead = async (notifId) => {
     try {
-      const result = await window.storage.get('notifications');
-      const allNotifs = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('notifications');
+      const allNotifs = result ? JSON.parse(result) : [];
       const updated = allNotifs.map(n => n.id === notifId ? { ...n, read: true } : n);
-      await window.storage.set('notifications', JSON.stringify(updated));
+      localStorage.setItem('notifications', JSON.stringify(updated));
       setNotifications(updated.filter(n => n.userId === currentUser.id));
     } catch (error) {
       console.error(error);
@@ -569,8 +569,8 @@ Réponds en JSON :
   // Réaction emoji sur un post
   const reactToPost = async (postId, emoji) => {
     try {
-      const result = await window.storage.get('posts');
-      const allPosts = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('posts');
+      const allPosts = result ? JSON.parse(result) : [];
       
       const updatedPosts = allPosts.map(post => {
         if (post.id === postId) {
@@ -597,7 +597,7 @@ Réponds en JSON :
   // Compter les réactions
   const getReactionCount = (post, emoji) => {
     const reactions = post.reactions || {};
-    return Object.values(reactions).filter(userReactions => userReactions.includes(emoji)).length;
+    return Object.values(reactions).filter(userReactions => Array.isArray(userReactions) && userReactions.includes(emoji)).length;
   };
 
   // Vérifier si l'utilisateur a réagi
@@ -721,8 +721,8 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
 
   const sendFriendRequest = async (toUser) => {
     try {
-      const result = await window.storage.get('friendRequests');
-      const allRequests = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('friendRequests');
+      const allRequests = result ? JSON.parse(result) : [];
       const newRequest = {
         id: Date.now().toString(),
         fromUserId: currentUser.id,
@@ -741,8 +741,8 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
 
   const acceptFriendRequest = async (request) => {
     try {
-      const result = await window.storage.get('friendRequests');
-      const allRequests = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('friendRequests');
+      const allRequests = result ? JSON.parse(result) : [];
       await saveFriendRequests(allRequests.map(req => req.id === request.id ? { ...req, status: 'accepted' } : req));
       const fromUser = users.find(u => u.id === request.fromUserId);
       const toUser = users.find(u => u.id === request.toUserId);
@@ -761,8 +761,8 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
 
   const rejectFriendRequest = async (request) => {
     try {
-      const result = await window.storage.get('friendRequests');
-      const allRequests = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('friendRequests');
+      const allRequests = result ? JSON.parse(result) : [];
       await saveFriendRequests(allRequests.map(req => req.id === request.id ? { ...req, status: 'rejected' } : req));
       alert('Demande refusée');
     } catch (error) {
@@ -776,8 +776,8 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
       return;
     }
     try {
-      const result = await window.storage.get('posts');
-      const allPosts = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('posts');
+      const allPosts = result ? JSON.parse(result) : [];
       const newPost = {
         id: Date.now().toString(),
         userId: currentUser.id,
@@ -800,8 +800,8 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
 
   const likePost = async (postId) => {
     try {
-      const result = await window.storage.get('posts');
-      const allPosts = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('posts');
+      const allPosts = result ? JSON.parse(result) : [];
       await savePosts(allPosts.map(post => {
         if (post.id === postId) {
           const hasLiked = post.likes.includes(currentUser.id);
@@ -818,8 +818,8 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
     const text = commentTexts[postId];
     if (!text?.trim()) return;
     try {
-      const result = await window.storage.get('posts');
-      const allPosts = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('posts');
+      const allPosts = result ? JSON.parse(result) : [];
       await savePosts(allPosts.map(post => {
         if (post.id === postId) {
           return {
@@ -846,8 +846,8 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
   const sendChatMessage = async (friendId) => {
     if (!chatMessage.trim()) return;
     try {
-      const result = await window.storage.get('chats');
-      const allChats = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('chats');
+      const allChats = result ? JSON.parse(result) : [];
       let chat = allChats.find(c => c.participants.includes(currentUser.id) && c.participants.includes(friendId));
       const newMessage = {
         id: Date.now().toString(),
@@ -882,8 +882,8 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
   const recommendMovieInChat = async (friendId, movie) => {
     const text = `🎬 Je te recommande : ${movie.title} (${movie.year}) - ${movie.rating}/10`;
     try {
-      const result = await window.storage.get('chats');
-      const allChats = result ? JSON.parse(result.value) : [];
+      const result = localStorage.getItem('chats');
+      const allChats = result ? JSON.parse(result) : [];
       let chat = allChats.find(c => c.participants.includes(currentUser.id) && c.participants.includes(friendId));
       const newMessage = {
         id: Date.now().toString(),
