@@ -906,24 +906,61 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white">
-      <div className="bg-gray-900 bg-opacity-50 backdrop-blur-lg border-b border-gray-700">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Film className="w-8 h-8 text-purple-400" />
-            <h1 className="text-2xl font-bold">Vortics</h1>
-          </div>
+
+  <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-black text-white bg-pattern">
+  {/* Header moderne */}
+      <div className="relative bg-gradient-to-r from-violet-950 via-purple-900 to-indigo-950 border-b border-purple-500/20 shadow-2xl">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMiI+PHBhdGggZD0iTTM2IDE0YzMuMzE0IDAgNiAyLjY4NiA2IDZzLTIuNjg2IDYtNiA2LTYtMi42ODYtNi02IDIuNjg2LTYgNi02eiIvPjwvZz48L2c+PC9zdmc+')] opacity-30"></div>
+        
+        <div className="relative container mx-auto px-6 py-6 flex justify-between items-center">
+          {/* Logo avec badge néon */}
           <div className="flex items-center gap-4">
-            <button onClick={() => setShowNotifications(!showNotifications)} className="relative text-gray-400 hover:text-white">
-              <span className="text-2xl">🔔</span>
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl opacity-75 group-hover:opacity-100 blur transition duration-300"></div>
+              <div className="relative bg-gradient-to-br from-purple-600 to-blue-600 p-3 rounded-xl">
+                <Film className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <div>
+              <h1 className="text-4xl font-black tracking-tight">
+                <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+                  Vortics
+                </span>
+              </h1>
+              <p className="text-xs text-purple-300/60 font-medium tracking-widest uppercase">Cinematic AI</p>
+            </div>
+          </div>
+
+          {/* Actions utilisateur */}
+          <div className="flex items-center gap-3">
+            {/* Notifications */}
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)} 
+              className="relative group p-3.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/50 transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-purple-500/25"
+            >
+              <span className="text-2xl group-hover:scale-110 inline-block transition-transform">🔔</span>
               {notifications.filter(n => !n.read).length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-gradient-to-r from-pink-500 to-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse shadow-lg">
                   {notifications.filter(n => !n.read).length}
                 </span>
               )}
             </button>
-            <span className="text-sm text-gray-300">👤 {currentUser.username}</span>
-            <button onClick={handleLogout} className="text-gray-400 hover:text-white"><LogOut className="w-5 h-5" /></button>
+
+            {/* User badge */}
+            <div className="px-5 py-2.5 bg-gradient-to-r from-white/10 to-white/5 rounded-xl border border-white/10 backdrop-blur-sm">
+              <span className="text-sm font-semibold flex items-center gap-2">
+                <span className="text-lg">👤</span>
+                {currentUser.username}
+              </span>
+            </div>
+
+            {/* Logout */}
+            <button 
+              onClick={handleLogout} 
+              className="group p-3.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-red-500/25"
+            >
+              <LogOut className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+            </button>
           </div>
         </div>
         
@@ -951,32 +988,226 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
             )}
           </div>
         )}
-      </div>
+    
+    </div>
 
-      <div className="bg-gray-800 bg-opacity-30 border-b border-gray-700">
-        <div className="container mx-auto px-4">
-          <div className="flex gap-1">
-            <button onClick={() => setPage('home')} className={`flex items-center gap-2 px-4 py-3 transition whitespace-nowrap ${page === 'home' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}><Home className="w-5 h-5" /><span>Accueil</span></button>
-            <button onClick={() => setPage('feed')} className={`flex items-center gap-2 px-4 py-3 transition whitespace-nowrap ${page === 'feed' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}><Film className="w-5 h-5" /><span>Fil</span></button>
-            <button onClick={() => setPage('ai')} className={`flex items-center gap-2 px-4 py-3 transition whitespace-nowrap ${page === 'ai' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}><Sparkles className="w-5 h-5" /><span>IA</span></button>
-            <button onClick={() => setPage('search')} className={`flex items-center gap-2 px-4 py-3 transition whitespace-nowrap ${page === 'search' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}><Search className="w-5 h-5" /><span>Recherche</span></button>
-            <button onClick={() => setPage('identify')} className={`flex items-center gap-2 px-4 py-3 transition whitespace-nowrap ${page === 'identify' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}>
-              <span className="text-lg">🎯</span>
-              <span>Identifier</span>
+      {/* Navigation moderne */}
+      <div className="sticky top-0 z-40 bg-black/40 backdrop-blur-xl border-b border-white/5">
+        <div className="container mx-auto px-6">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => setPage('home')}
+              className={`relative flex items-center gap-3 px-6 py-4 font-semibold transition-all duration-300 whitespace-nowrap ${
+                page === 'home' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {page === 'home' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-t-2xl shadow-lg shadow-purple-500/50 -translate-y-1"></div>
+              )}
+              {page !== 'home' && (
+                <div className="absolute inset-0 bg-white/0 hover:bg-white/5 rounded-t-2xl transition-all duration-300"></div>
+              )}
+              <span className="relative z-10 flex items-center gap-3">
+                <Home className="w-5 h-5" />
+                <span>Accueil</span>
+              </span>
+              {page === 'home' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400"></div>
+              )}
             </button>
-            <button onClick={() => setPage('friends')} className={`flex items-center gap-2 px-4 py-3 transition relative whitespace-nowrap ${page === 'friends' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}>
-              <Users className="w-5 h-5" /><span>Amis</span>
-              {friendRequests.filter(r => r.status === 'pending').length > 0 && <span className="absolute top-1 right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{friendRequests.filter(r => r.status === 'pending').length}</span>}
+
+            <button
+              onClick={() => setPage('feed')}
+              className={`relative flex items-center gap-3 px-6 py-4 font-semibold transition-all duration-300 whitespace-nowrap ${
+                page === 'feed' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {page === 'feed' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-t-2xl shadow-lg shadow-purple-500/50 -translate-y-1"></div>
+              )}
+              {page !== 'feed' && (
+                <div className="absolute inset-0 bg-white/0 hover:bg-white/5 rounded-t-2xl transition-all duration-300"></div>
+              )}
+              <span className="relative z-10 flex items-center gap-3">
+                <Film className="w-5 h-5" />
+                <span>Fil</span>
+              </span>
+              {page === 'feed' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400"></div>
+              )}
             </button>
-            <button onClick={() => setPage('chat')} className={`flex items-center gap-2 px-4 py-3 transition whitespace-nowrap ${page === 'chat' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}><MessageCircle className="w-5 h-5" /><span>Chat</span></button>
-            <button onClick={() => setPage('profile')} className={`flex items-center gap-2 px-4 py-3 transition whitespace-nowrap ${page === 'profile' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}><User className="w-5 h-5" /><span>Profil</span></button>
-            <button onClick={() => setPage('calendar')} className={`flex items-center gap-2 px-4 py-3 transition whitespace-nowrap ${page === 'calendar' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}>
-              <span className="text-lg">📅</span>
-              <span>Sorties</span>
+
+            <button
+              onClick={() => setPage('ai')}
+              className={`relative flex items-center gap-3 px-6 py-4 font-semibold transition-all duration-300 whitespace-nowrap ${
+                page === 'ai' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {page === 'ai' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-t-2xl shadow-lg shadow-purple-500/50 -translate-y-1"></div>
+              )}
+              {page !== 'ai' && (
+                <div className="absolute inset-0 bg-white/0 hover:bg-white/5 rounded-t-2xl transition-all duration-300"></div>
+              )}
+              <span className="relative z-10 flex items-center gap-3">
+                <Sparkles className="w-5 h-5" />
+                <span>IA</span>
+              </span>
+              {page === 'ai' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400"></div>
+              )}
             </button>
-            <button onClick={() => setPage('stats')} className={`flex items-center gap-2 px-4 py-3 transition whitespace-nowrap ${page === 'stats' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}>
-              <span className="text-lg">📊</span>
-              <span>Stats</span>
+
+            <button
+              onClick={() => setPage('search')}
+              className={`relative flex items-center gap-3 px-6 py-4 font-semibold transition-all duration-300 whitespace-nowrap ${
+                page === 'search' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {page === 'search' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-t-2xl shadow-lg shadow-purple-500/50 -translate-y-1"></div>
+              )}
+              {page !== 'search' && (
+                <div className="absolute inset-0 bg-white/0 hover:bg-white/5 rounded-t-2xl transition-all duration-300"></div>
+              )}
+              <span className="relative z-10 flex items-center gap-3">
+                <Search className="w-5 h-5" />
+                <span>Recherche</span>
+              </span>
+              {page === 'search' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400"></div>
+              )}
+            </button>
+
+            <button
+              onClick={() => setPage('identify')}
+              className={`relative flex items-center gap-3 px-6 py-4 font-semibold transition-all duration-300 whitespace-nowrap ${
+                page === 'identify' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {page === 'identify' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-t-2xl shadow-lg shadow-purple-500/50 -translate-y-1"></div>
+              )}
+              {page !== 'identify' && (
+                <div className="absolute inset-0 bg-white/0 hover:bg-white/5 rounded-t-2xl transition-all duration-300"></div>
+              )}
+              <span className="relative z-10 flex items-center gap-3">
+                <span className="text-xl">🎯</span>
+                <span>Identifier</span>
+              </span>
+              {page === 'identify' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400"></div>
+              )}
+            </button>
+
+            <button
+              onClick={() => setPage('friends')}
+              className={`relative flex items-center gap-3 px-6 py-4 font-semibold transition-all duration-300 whitespace-nowrap ${
+                page === 'friends' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {page === 'friends' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-t-2xl shadow-lg shadow-purple-500/50 -translate-y-1"></div>
+              )}
+              {page !== 'friends' && (
+                <div className="absolute inset-0 bg-white/0 hover:bg-white/5 rounded-t-2xl transition-all duration-300"></div>
+              )}
+              <span className="relative z-10 flex items-center gap-3">
+                <Users className="w-5 h-5" />
+                <span>Amis</span>
+                {friendRequests.filter(r => r.status === 'pending').length > 0 && (
+                  <span className="bg-gradient-to-r from-pink-500 to-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5 animate-pulse shadow-lg">
+                    {friendRequests.filter(r => r.status === 'pending').length}
+                  </span>
+                )}
+              </span>
+              {page === 'friends' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400"></div>
+              )}
+            </button>
+
+            <button
+              onClick={() => setPage('chat')}
+              className={`relative flex items-center gap-3 px-6 py-4 font-semibold transition-all duration-300 whitespace-nowrap ${
+                page === 'chat' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {page === 'chat' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-t-2xl shadow-lg shadow-purple-500/50 -translate-y-1"></div>
+              )}
+              {page !== 'chat' && (
+                <div className="absolute inset-0 bg-white/0 hover:bg-white/5 rounded-t-2xl transition-all duration-300"></div>
+              )}
+              <span className="relative z-10 flex items-center gap-3">
+                <MessageCircle className="w-5 h-5" />
+                <span>Chat</span>
+              </span>
+              {page === 'chat' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400"></div>
+              )}
+            </button>
+
+            <button
+              onClick={() => setPage('profile')}
+              className={`relative flex items-center gap-3 px-6 py-4 font-semibold transition-all duration-300 whitespace-nowrap ${
+                page === 'profile' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {page === 'profile' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-t-2xl shadow-lg shadow-purple-500/50 -translate-y-1"></div>
+              )}
+              {page !== 'profile' && (
+                <div className="absolute inset-0 bg-white/0 hover:bg-white/5 rounded-t-2xl transition-all duration-300"></div>
+              )}
+              <span className="relative z-10 flex items-center gap-3">
+                <User className="w-5 h-5" />
+                <span>Profil</span>
+              </span>
+              {page === 'profile' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400"></div>
+              )}
+            </button>
+
+            <button
+              onClick={() => setPage('calendar')}
+              className={`relative flex items-center gap-3 px-6 py-4 font-semibold transition-all duration-300 whitespace-nowrap ${
+                page === 'calendar' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {page === 'calendar' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-t-2xl shadow-lg shadow-purple-500/50 -translate-y-1"></div>
+              )}
+              {page !== 'calendar' && (
+                <div className="absolute inset-0 bg-white/0 hover:bg-white/5 rounded-t-2xl transition-all duration-300"></div>
+              )}
+              <span className="relative z-10 flex items-center gap-3">
+                <span className="text-xl">📅</span>
+                <span>Sorties</span>
+              </span>
+              {page === 'calendar' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400"></div>
+              )}
+            </button>
+
+            <button
+              onClick={() => setPage('stats')}
+              className={`relative flex items-center gap-3 px-6 py-4 font-semibold transition-all duration-300 whitespace-nowrap ${
+                page === 'stats' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {page === 'stats' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-t-2xl shadow-lg shadow-purple-500/50 -translate-y-1"></div>
+              )}
+              {page !== 'stats' && (
+                <div className="absolute inset-0 bg-white/0 hover:bg-white/5 rounded-t-2xl transition-all duration-300"></div>
+              )}
+              <span className="relative z-10 flex items-center gap-3">
+                <span className="text-xl">📊</span>
+                <span>Stats</span>
+              </span>
+              {page === 'stats' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400"></div>
+              )}
             </button>
           </div>
         </div>
