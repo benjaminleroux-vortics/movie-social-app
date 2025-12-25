@@ -3,7 +3,6 @@ import { Film, Home, Users, MessageCircle, Search, Heart, LogOut, User, Send, Sp
 import { signUp, signIn, signOut as firebaseSignOut, onAuthChange, getUserData } from './services/authService';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './config/firebase';
-import { addToLikedMovies, addToWatchedMovies, addOrUpdateRating } from './services/userService';
 import { searchMovie } from './services/movieService';
 import { createPost, getAllPosts, likePost as likePostFirebase, addComment } from './services/postService';
 
@@ -26,7 +25,17 @@ import {
   subscribeToMessages
 } from './services/chatService';
 
-import { addFriend, removeFriendFromUser } from './services/userService';
+
+import { 
+  addToLikedMovies, 
+  addToWatchedMovies, 
+  addOrUpdateRating,
+  addFriend, 
+  removeFriendFromUser,
+  removeFromLikedMovies,
+  removeFromWatchedMovies
+} from './services/userService';
+
 
 // NOUVEAUX IMPORTS
 import {
@@ -106,6 +115,8 @@ const CineMatchApp = () => {
   const [showProfilePicUpload, setShowProfilePicUpload] = useState(false);
   const [profilePic, setProfilePic] = useState(null);
   const [emojiReactions, setEmojiReactions] = useState({});
+  const [showListMenu, setShowListMenu] = useState(null); // ID du film pour lequel on affiche le menu
+  const [userLists, setUserLists] = useState([]); // Listes de l'utilisateur
 
   useEffect(() => {
   if (currentUser) {
@@ -566,7 +577,6 @@ IMPORTANT: Réponds UNIQUEMENT avec le tableau JSON, rien d'autre. Exactement 5 
 
     if (newBadges.length > 0) {
       const updatedUser = { ...currentUser, badges: [...badges, ...newBadges] };
-      await saveUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
       setCurrentUser(updatedUser);
       newBadges.forEach(badge => {
         addNotification(currentUser.id, `🏆 Nouveau badge débloqué : ${badge.name} ${badge.icon}`, 'badge');
@@ -1064,10 +1074,7 @@ const loadLists = async () => {
   if (!currentUser) return;
   
   const lists = await getUserLists(currentUser.id);
-  setCurrentUser({
-    ...currentUser,
-    lists: lists
-  });
+  setUserLists(lists);
 };
 
   const recommendMovieInChat = async (friendId, movie) => {
@@ -1089,7 +1096,7 @@ const loadLists = async () => {
         chat.lastMessage = text;
         chat.lastMessageAt = new Date().toISOString();
       } else {
-        const friend = users.find(u => u.id === friendId);
+        const friend = currentUser.friends.find(f => f.id === friendId);
         chat = {
           id: Date.now().toString(),
           participants: [currentUser.id, friendId],
@@ -1100,12 +1107,105 @@ const loadLists = async () => {
         };
         allChats.push(chat);
       }
-      await saveChats(allChats);
       alert('Film recommandé ! 🎉');
     } catch (error) {
       console.error(error);
     }
   };
+
+
+// Composant réutilisable pour le menu de listes
+const ListMenu = ({ movie, uniqueId }) => (
+  <div className="relative">
+    <button 
+      onClick={() => setShowListMenu(showListMenu === uniqueId ? null : uniqueId)}
+      className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition flex items-center gap-2"
+    >
+      📋 Listes
+    </button>
+    
+    {showListMenu === uniqueId && (
+      <>
+        {/* Overlay pour fermer le menu en cliquant à l'extérieur */}
+        <div 
+          className="fixed inset-0 z-10" 
+          onClick={() => setShowListMenu(null)}
+        />
+        
+        {/* Menu déroulant */}
+        <div className="absolute top-full mt-2 bg-gray-700 rounded-lg shadow-xl z-20 min-w-[200px] max-h-[300px] overflow-y-auto">
+          <div className="p-2">
+            <p className="text-xs text-gray-400 px-2 py-1 border-b border-gray-600 mb-1">
+              Ajouter à une liste
+            </p>
+            {userLists.length === 0 ? (
+              <p className="text-sm text-gray-400 px-3 py-3 text-center">
+                Aucune liste créée
+              </p>
+            ) : (
+              userLists.map(list => (
+                <button
+                  key={list.id}
+                  onClick={() => {
+                    addToList(list.id, movie);
+                    setShowListMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-600 rounded text-sm transition"
+                >
+                  {list.name}
+                  <span className="text-xs text-gray-400 ml-2">
+                    ({list.movies?.length || 0} films)
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </>
+    )}
+  </div>
+);
+
+	const toggleLike = async (movie) => {
+	  try {
+		const isLiked = currentUser.likedMovies.some(m => m.title === movie.title);
+		
+		if (isLiked) {
+		  // Retirer des films aimés
+		  await removeFromLikedMovies(currentUser.id, movie.title);
+		} else {
+		  // Ajouter aux films aimés
+		  await addToLikedMovies(currentUser.id, movie);
+		}
+		
+		// Recharger l'utilisateur
+		const updatedUser = await getUserData(currentUser.id);
+		if (updatedUser) setCurrentUser(updatedUser);
+	  } catch (error) {
+		console.error('Erreur toggle like:', error);
+	  }
+	};
+
+	const toggleWatched = async (movie) => {
+	  try {
+		const isWatched = currentUser.watchedMovies.some(m => m.title === movie.title);
+		
+		if (isWatched) {
+		  // Retirer des films vus
+		  await removeFromWatchedMovies(currentUser.id, movie.title);
+		} else {
+		  // Ajouter aux films vus
+		  await addToWatchedMovies(currentUser.id, movie);
+		}
+		
+		// Recharger l'utilisateur
+		const updatedUser = await getUserData(currentUser.id);
+		if (updatedUser) setCurrentUser(updatedUser);
+	  } catch (error) {
+		console.error('Erreur toggle watched:', error);
+	  }
+	};
+
 
   if (!currentUser) {
     return (
@@ -1565,41 +1665,53 @@ const loadLists = async () => {
               </button>
             </div>
             {aiRecommendation && (
-              <div className="bg-gradient-to-br from-purple-800 to-blue-800 rounded-2xl p-6">
-                <div className="flex justify-between mb-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">{aiRecommendation.type === 'serie' ? '📺' : '🎬'}</span>
-                      <h3 className="text-2xl font-bold">{aiRecommendation.title}</h3>
-                    </div>
-                    <p className="text-gray-300">{aiRecommendation.year} • {aiRecommendation.director}</p>
-                    {aiRecommendation.seasons && <p className="text-sm text-gray-400">📺 {aiRecommendation.seasons} saison{aiRecommendation.seasons > 1 ? 's' : ''}</p>}
-                  </div>
-                  <div className="bg-yellow-500 text-black px-3 py-1 rounded-lg font-bold">⭐ {aiRecommendation.rating}</div>
-                </div>
-                <p className="text-sm text-gray-400 mb-4">{aiRecommendation.actors}</p>
-                <div className="mb-4">
-                  <h4 className="font-semibold mb-2">📖 Synopsis</h4>
-                  <p>{aiRecommendation.synopsis}</p>
-                </div>
-                <div className="mb-6">
-                  <h4 className="font-semibold mb-2">💡 Pourquoi ?</h4>
-                  <p>{aiRecommendation.why}</p>
-                </div>
-                <button onClick={() => likeMovie(aiRecommendation)} className="w-full bg-red-500 hover:bg-red-600 p-3 rounded-lg font-semibold flex items-center justify-center gap-2 mb-3">
-                  <Heart className="w-5 h-5" />Ajouter aux favoris
-                </button>
-                <button onClick={() => markAsWatched(aiRecommendation)} className="w-full bg-green-600 hover:bg-green-700 p-3 rounded-lg font-semibold flex items-center justify-center gap-2 mb-3">
-                  ✓ Marquer comme vu
-                </button>
-                <button onClick={() => setRatingMovie(aiRecommendation)} className="w-full bg-yellow-600 hover:bg-yellow-700 p-3 rounded-lg font-semibold flex items-center justify-center gap-2 mb-3">
-                  ⭐ Noter ce {aiRecommendation.type === 'serie' ? 'série' : 'film'}
-                </button>
-                <button onClick={() => { setSharingMovie(aiRecommendation); setPage('share'); }} className="w-full bg-blue-500 hover:bg-blue-600 p-3 rounded-lg font-semibold flex items-center justify-center gap-2">
-                  <Send className="w-5 h-5" />Partager
-                </button>
-              </div>
-            )}
+			  <div className="bg-gray-800 bg-opacity-50 rounded-2xl p-6">
+				<h3 className="text-3xl font-bold mb-2">{aiRecommendation.title}</h3>
+				<p className="text-gray-400 mb-4">{aiRecommendation.year} • {aiRecommendation.director}</p>
+				
+				{aiRecommendation.actors && (
+				  <p className="text-sm text-purple-400 mb-4">🎭 {aiRecommendation.actors}</p>
+				)}
+				
+				<p className="text-gray-300 mb-4">{aiRecommendation.synopsis}</p>
+				
+				{aiRecommendation.why && (
+				  <div className="bg-purple-900 bg-opacity-30 border border-purple-500 rounded-lg p-4 mb-4">
+					<p className="text-sm text-purple-300">💡 {aiRecommendation.why}</p>
+				  </div>
+				)}
+				
+				{/* BOUTONS */}
+				<div className="flex flex-wrap gap-3">
+				  {/* Bouton Like */}
+				  <button 
+					onClick={() => toggleLike(aiRecommendation)} 
+					className={`px-6 py-3 rounded-lg transition ${
+					  currentUser.likedMovies.some(m => m.title === aiRecommendation.title) 
+						? 'bg-pink-600 hover:bg-pink-700' 
+						: 'bg-gray-700 hover:bg-gray-600'
+					}`}
+				  >
+					❤️ Aimer
+				  </button>
+				  
+				  {/* Bouton Watched */}
+				  <button 
+					onClick={() => toggleWatched(aiRecommendation)} 
+					className={`px-6 py-3 rounded-lg transition ${
+					  currentUser.watchedMovies.some(m => m.title === aiRecommendation.title) 
+						? 'bg-green-600 hover:bg-green-700' 
+						: 'bg-gray-700 hover:bg-gray-600'
+					}`}
+				  >
+					✓ Marquer comme vu
+				  </button>
+				  
+				  {/* NOUVEAU : Bouton Listes */}
+				  <ListMenu movie={aiRecommendation} uniqueId="ai-reco" />
+				</div>
+			  </div>
+			)}
           </div>
         )}
 
@@ -1629,38 +1741,51 @@ const loadLists = async () => {
             </div>
 
             {mediaSearchResults.length > 0 && (
-              <div className="space-y-4">
-                {mediaSearchResults.map((result, index) => (
-                  <div key={index} className="bg-gradient-to-br from-purple-800 to-blue-800 rounded-2xl p-6">
-                    <div className="flex justify-between mb-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-2xl">{result.type === 'serie' ? '📺' : '🎬'}</span>
-                          <h3 className="text-2xl font-bold">{result.title}</h3>
-                        </div>
-                        <p className="text-gray-300">{result.year} • {result.director}</p>
-                        {result.seasons && <p className="text-sm text-gray-400">📺 {result.seasons} saison{result.seasons > 1 ? 's' : ''}</p>}
-                      </div>
-                      <div className="bg-yellow-500 text-black px-3 py-1 rounded-lg font-bold">⭐ {result.rating}</div>
-                    </div>
-                    <p className="text-sm text-gray-400 mb-4">{result.actors}</p>
-                    <div className="mb-6">
-                      <h4 className="font-semibold mb-2">📖 Synopsis</h4>
-                      <p>{result.synopsis}</p>
-                    </div>
-                    <button onClick={() => likeMovie(result)} className="w-full bg-red-500 hover:bg-red-600 p-3 rounded-lg font-semibold flex items-center justify-center gap-2 mb-3">
-                      <Heart className="w-5 h-5" />Ajouter aux favoris
-                    </button>
-                    <button onClick={() => markAsWatched(result)} className="w-full bg-green-600 hover:bg-green-700 p-3 rounded-lg font-semibold flex items-center justify-center gap-2 mb-3">
-                      ✓ Marquer comme vu
-                    </button>
-                    <button onClick={() => { setSharingMovie(result); setPage('share'); }} className="w-full bg-blue-500 hover:bg-blue-600 p-3 rounded-lg font-semibold flex items-center justify-center gap-2">
-                      <Send className="w-5 h-5" />Partager
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+			  <div className="space-y-4">
+				{mediaSearchResults.map((movie, index) => (
+				  <div key={index} className="bg-gray-800 bg-opacity-50 rounded-2xl p-6">
+					<div className="flex gap-4">
+					  {/* Infos du film */}
+					  <div className="flex-1">
+						<h3 className="text-2xl font-bold">{movie.title}</h3>
+						<p className="text-gray-400 mb-2">{movie.year} • {movie.director}</p>
+						<p className="text-sm text-gray-300 mb-4">{movie.synopsis}</p>
+						
+						{/* BOUTONS */}
+						<div className="flex flex-wrap gap-2">
+						  {/* Bouton Like */}
+						  <button 
+							onClick={() => toggleLike(movie)} 
+							className={`px-4 py-2 rounded-lg transition ${
+							  currentUser.likedMovies.some(m => m.title === movie.title) 
+								? 'bg-pink-600 hover:bg-pink-700' 
+								: 'bg-gray-700 hover:bg-gray-600'
+							}`}
+						  >
+							❤️ {currentUser.likedMovies.some(m => m.title === movie.title) ? 'Aimé' : 'Aimer'}
+						  </button>
+						  
+						  {/* Bouton Watched */}
+						  <button 
+							onClick={() => toggleWatched(movie)} 
+							className={`px-4 py-2 rounded-lg transition ${
+							  currentUser.watchedMovies.some(m => m.title === movie.title) 
+								? 'bg-green-600 hover:bg-green-700' 
+								: 'bg-gray-700 hover:bg-gray-600'
+							}`}
+						  >
+							✓ {currentUser.watchedMovies.some(m => m.title === movie.title) ? 'Vu' : 'Marquer vu'}
+						  </button>
+						  
+						  {/* NOUVEAU : Bouton Listes */}
+						  <ListMenu movie={movie} uniqueId={`search-${index}`} />
+						</div>
+					  </div>
+					</div>
+				  </div>
+				))}
+			  </div>
+			)}
           </div>
         )}
 
@@ -2071,8 +2196,9 @@ const loadLists = async () => {
                           <option value="public">🌍</option>
                           <option value="private">🔒</option>
                         </select>
-                        <button onClick={() => commentPost(post.id)} className="bg-purple-600 px-4 py-2 rounded-lg"><Send className="w-4 h-4" /></button>
-                      </div>
+                        <button onClick={() => commentPost(post.id, commentTexts[post.id] || '')} className="bg-purple-600 px-4 py-2 rounded-lg"><Send className="w-4 h-4" /></button>
+                      
+					  </div>
                     </div>
                   );
                 })}

@@ -177,7 +177,7 @@ export const searchUsers = async (searchTerm: string, currentUserId: string): Pr
       }))
       .filter(user => 
         user.id !== currentUserId && 
-        user.username?.toLowerCase().includes(searchTerm.toLowerCase())
+        (user as any).username?.toLowerCase().includes(searchTerm.toLowerCase())
       );
 
     return users;
@@ -187,7 +187,6 @@ export const searchUsers = async (searchTerm: string, currentUserId: string): Pr
   }
 };
 
-import { onSnapshot } from 'firebase/firestore';
 
 // Écouter les demandes d'amis en temps réel
 export const subscribeFriendRequests = (

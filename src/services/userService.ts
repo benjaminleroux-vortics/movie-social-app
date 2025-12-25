@@ -60,19 +60,6 @@ export const addToLikedMovies = async (userId: string, movie: any) => {
   }
 };
 
-// Retirer un film des favoris
-export const removeFromLikedMovies = async (userId: string, movie: any) => {
-  try {
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
-      likedMovies: arrayRemove(movie)
-    });
-    return true;
-  } catch (error) {
-    console.error("Erreur retrait film aimé:", error);
-    return false;
-  }
-};
 
 // Ajouter un film aux films vus
 export const addToWatchedMovies = async (userId: string, movie: any) => {
@@ -158,7 +145,6 @@ export const getAllUsers = async (): Promise<UserData[]> => {
   }
 };
 
-import { getDoc } from 'firebase/firestore';
 
 // Ajouter un ami
 export const addFriend = async (
@@ -201,6 +187,52 @@ export const removeFriendFromUser = async (
     });
   } catch (error) {
     console.error('Erreur suppression ami:', error);
+    throw error;
+  }
+};
+
+// Retirer un film des films aimés
+export const removeFromLikedMovies = async (
+  userId: string,
+  movieTitle: string
+): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    const userData = userDoc.data();
+    
+    const updatedLikedMovies = (userData?.likedMovies || []).filter(
+      (m: any) => m.title !== movieTitle
+    );
+    
+    await updateDoc(userRef, {
+      likedMovies: updatedLikedMovies
+    });
+  } catch (error) {
+    console.error('Erreur retrait film aimé:', error);
+    throw error;
+  }
+};
+
+// Retirer un film des films vus
+export const removeFromWatchedMovies = async (
+  userId: string,
+  movieTitle: string
+): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    const userData = userDoc.data();
+    
+    const updatedWatchedMovies = (userData?.watchedMovies || []).filter(
+      (m: any) => m.title !== movieTitle
+    );
+    
+    await updateDoc(userRef, {
+      watchedMovies: updatedWatchedMovies
+    });
+  } catch (error) {
+    console.error('Erreur retrait film vu:', error);
     throw error;
   }
 };
