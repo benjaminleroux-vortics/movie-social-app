@@ -124,19 +124,7 @@ export const addOrUpdateRating = async (userId: string, movieId: string, rating:
   }
 };
 
-// Ajouter un ami
-export const addFriend = async (userId: string, friendId: string) => {
-  try {
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
-      friends: arrayUnion(friendId)
-    });
-    return true;
-  } catch (error) {
-    console.error("Erreur ajout ami:", error);
-    return false;
-  }
-};
+
 
 // Retirer un ami
 export const removeFriend = async (userId: string, friendId: string) => {
@@ -167,5 +155,52 @@ export const getAllUsers = async (): Promise<UserData[]> => {
   } catch (error) {
     console.error("Erreur récupération utilisateurs:", error);
     return [];
+  }
+};
+
+import { getDoc } from 'firebase/firestore';
+
+// Ajouter un ami
+export const addFriend = async (
+  userId: string,
+  friendId: string,
+  friendUsername: string
+): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    
+    await updateDoc(userRef, {
+      friends: arrayUnion({
+        id: friendId,
+        username: friendUsername,
+        addedAt: new Date().toISOString()
+      })
+    });
+  } catch (error) {
+    console.error('Erreur ajout ami:', error);
+    throw error;
+  }
+};
+
+// Retirer un ami
+export const removeFriendFromUser = async (
+  userId: string,
+  friendId: string
+): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    const userData = userDoc.data();
+    
+    const updatedFriends = (userData?.friends || []).filter(
+      (f: any) => f.id !== friendId
+    );
+    
+    await updateDoc(userRef, {
+      friends: updatedFriends
+    });
+  } catch (error) {
+    console.error('Erreur suppression ami:', error);
+    throw error;
   }
 };

@@ -7,11 +7,51 @@ import { addToLikedMovies, addToWatchedMovies, addOrUpdateRating } from './servi
 import { searchMovie } from './services/movieService';
 import { createPost, getAllPosts, likePost as likePostFirebase, addComment } from './services/postService';
 
+import { 
+  sendFriendRequest as sendFriendRequestFirebase,
+  getFriendRequests,
+  acceptFriendRequest as acceptFriendRequestFirebase,
+  rejectFriendRequest as rejectFriendRequestFirebase,
+  removeFriend as removeFriendFirebase,
+  searchUsers as searchUsersFirebase,
+  subscribeFriendRequests
+} from './services/friendService';
+
+import {
+  getOrCreateChat,
+  sendMessage as sendMessageFirebase,
+  getUserChats,
+  getChatMessages,
+  markMessagesAsRead,
+  subscribeToMessages
+} from './services/chatService';
+
+import { addFriend, removeFriendFromUser } from './services/userService';
+
+// NOUVEAUX IMPORTS
+import {
+  subscribeToNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+  notifyFriendRequest,
+  notifyFriendAccepted,
+  notifyPostLike,
+  notifyPostComment
+} from './services/notificationService';
+
+import {
+  createList as createListFirebase,
+  getUserLists,
+  addMovieToList as addMovieToListFirebase,
+  removeMovieFromList as removeMovieFromListFirebase,
+  deleteList as deleteListFirebase,
+  updateList as updateListFirebase
+} from './services/listService';
 
 const CineMatchApp = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [page, setPage] = useState('login');
-  const [users, setUsers] = useState([]);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [signupUsername, setSignupUsername] = useState('');
@@ -68,15 +108,25 @@ const CineMatchApp = () => {
   const [emojiReactions, setEmojiReactions] = useState({});
 
   useEffect(() => {
-    loadUsers();
-    if (currentUser) {
-      loadFriendRequests();
-      loadPosts();
-      loadChats();
-      loadNotifications();
-      checkBadges();
-    }
-  }, [currentUser]);
+  if (currentUser) {
+    loadPosts();
+    loadChats();
+    loadNotifications();
+	loadLists();
+    checkBadges();
+  }
+}, [currentUser]);
+
+// Écouter les demandes d'amis en temps réel
+useEffect(() => {
+  if (!currentUser) return;
+  
+  const unsubscribe = subscribeFriendRequests(currentUser.id, (requests) => {
+    setFriendRequests(requests);
+  });
+  
+  return () => unsubscribe();
+}, [currentUser]);
 
 // Observer l'état de connexion Firebase
 useEffect(() => {
@@ -94,38 +144,41 @@ useEffect(() => {
   return () => unsubscribe();
 }, []);
 
-  const loadUsers = async () => {
-    try {
-      const result = localStorage.getItem('users');
-      if (result) setUsers(JSON.parse(result));
-    } catch (error) {
-      console.log('Aucun utilisateur');
-    }
-  };
 
-  const saveUsers = async (updatedUsers) => {
-    localStorage.setItem('users', JSON.stringify(updatedUsers));
-    setUsers(updatedUsers);
-  };
+// Écouter les messages du chat sélectionné en temps réel
+useEffect(() => {
+  if (!selectedChat?.id) return;
+  
+  const unsubscribe = subscribeToMessages(selectedChat.id, (messages) => {
+    setSelectedChat(prev => ({
+      ...prev,
+      messages
+    }));
+  });
+  
+  return () => unsubscribe();
+}, [selectedChat?.id]);
+
+
+// Écouter les notifications en temps réel
+useEffect(() => {
+  if (!currentUser) return;
+  
+  const unsubscribe = subscribeToNotifications(currentUser.id, (notifs) => {
+    setNotifications(notifs);
+  });
+  
+  return () => unsubscribe();
+}, [currentUser]);
 
   const loadFriendRequests = async () => {
-    try {
-      const result = localStorage.getItem('friendRequests');
-      if (result) {
-        const allRequests = JSON.parse(result);
-        setFriendRequests(allRequests.filter(req => req.toUserId === currentUser.id));
-      }
-    } catch (error) {
-      console.log('Aucune demande');
-    }
+  if (!currentUser) return;
+  
+  const requests = await getFriendRequests(currentUser.id);
+  setFriendRequests(requests);
   };
 
-  const saveFriendRequests = async (requests) => {
-    localStorage.setItem('friendRequests', JSON.stringify(requests));
-    if (currentUser) {
-      setFriendRequests(requests.filter(req => req.toUserId === currentUser.id));
-    }
-  };
+
 
   const loadPosts = async () => {
   const allPosts = await getAllPosts();
@@ -138,21 +191,12 @@ useEffect(() => {
   };
 
   const loadChats = async () => {
-    try {
-      const result = localStorage.getItem('chats');
-      if (result) {
-        const allChats = JSON.parse(result);
-        setChats(allChats.filter(chat => chat.participants.includes(currentUser.id)));
-      }
-    } catch (error) {
-      console.log('Aucun chat');
-    }
-  };
+  if (!currentUser) return;
+  
+  const userChats = await getUserChats(currentUser.id);
+  setChats(userChats);
+};
 
-  const saveChats = async (updatedChats) => {
-    localStorage.setItem('chats', JSON.stringify(updatedChats));
-    setChats(updatedChats.filter(chat => chat.participants.includes(currentUser.id)));
-  };
 
   const handleSignup = async () => {
   try {
@@ -311,56 +355,6 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
   alert('Marqué comme vu ! ✓ L\'IA ne le proposera plus.');
 };
 
-  // Créer une liste
-  const createList = async () => {
-    if (!newListName.trim()) {
-      alert('Veuillez entrer un nom de liste');
-      return;
-    }
-    const lists = currentUser.lists || [];
-    const newList = {
-      id: Date.now().toString(),
-      name: newListName,
-      movies: [],
-      createdAt: new Date().toISOString()
-    };
-    const updatedUser = { ...currentUser, lists: [...lists, newList] };
-    await saveUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
-    setCurrentUser(updatedUser);
-    setNewListName('');
-    setShowCreateList(false);
-    alert('Liste créée ! ✓');
-  };
-
-  // Ajouter à une liste
-  const addToList = async (listId, movie) => {
-    const lists = currentUser.lists || [];
-    const updatedLists = lists.map(list => {
-      if (list.id === listId) {
-        const alreadyInList = list.movies.some(m => m.title === movie.title && m.year === movie.year);
-        if (alreadyInList) {
-          alert('Déjà dans cette liste !');
-          return list;
-        }
-        return { ...list, movies: [...list.movies, movie] };
-      }
-      return list;
-    });
-    const updatedUser = { ...currentUser, lists: updatedLists };
-    await saveUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
-    setCurrentUser(updatedUser);
-    alert('Ajouté à la liste ! ✓');
-  };
-
-  // Supprimer une liste
-  const deleteList = async (listId) => {
-    if (!confirm('Supprimer cette liste ?')) return;
-    const lists = currentUser.lists || [];
-    const updatedUser = { ...currentUser, lists: lists.filter(l => l.id !== listId) };
-    await saveUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
-    setCurrentUser(updatedUser);
-    alert('Liste supprimée');
-  };
 
   // Noter un film
   const rateMovie = async (movie, rating) => {
@@ -509,15 +503,8 @@ IMPORTANT: Réponds UNIQUEMENT avec le tableau JSON, rien d'autre. Exactement 5 
 
   // Charger les notifications
   const loadNotifications = async () => {
-    try {
-      const result = localStorage.getItem('notifications');
-      if (result) {
-        const allNotifs = JSON.parse(result);
-        setNotifications(allNotifs.filter(n => n.userId === currentUser.id));
-      }
-    } catch (error) {
-      console.log('Aucune notification');
-    }
+  // Plus nécessaire avec le listener temps réel
+  // Mais gardé pour compatibilité
   };
 
   // Ajouter une notification
@@ -544,16 +531,13 @@ IMPORTANT: Réponds UNIQUEMENT avec le tableau JSON, rien d'autre. Exactement 5 
 
   // Marquer comme lu
   const markNotificationRead = async (notifId) => {
-    try {
-      const result = localStorage.getItem('notifications');
-      const allNotifs = result ? JSON.parse(result) : [];
-      const updated = allNotifs.map(n => n.id === notifId ? { ...n, read: true } : n);
-      localStorage.setItem('notifications', JSON.stringify(updated));
-      setNotifications(updated.filter(n => n.userId === currentUser.id));
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  try {
+    await markNotificationAsRead(notifId);
+    // Les notifications seront automatiquement mises à jour par le listener
+  } catch (error) {
+    console.error('Erreur marquage notification:', error);
+  }
+};
 
   // Vérifier et attribuer les badges
   const checkBadges = async () => {
@@ -689,13 +673,20 @@ IMPORTANT: Réponds UNIQUEMENT avec le tableau JSON, rien d'autre. Exactement 5 
   }
 };
 
-  const searchUsers = () => {
-    if (!userSearchQuery.trim()) {
-      setUserSearchResults([]);
-      return;
-    }
-    setUserSearchResults(users.filter(u => u.id !== currentUser.id && u.username.toLowerCase().includes(userSearchQuery.toLowerCase())));
-  };
+  const searchUsers = async () => {
+  if (!userSearchQuery.trim()) {
+    alert('Entrez un nom d\'utilisateur');
+    return;
+  }
+  try {
+    const results = await searchUsersFirebase(userSearchQuery, currentUser.id);
+    setUserSearchResults(results);
+  } catch (error) {
+    console.error('Erreur recherche:', error);
+    setUserSearchResults([]);
+  }
+};
+
 
   const identifyMedia = async () => {
   if (!identifyDescription.trim() && !identifyActor.trim() && !identifyYear.trim() && !identifyGenre.trim() && !identifyLocation.trim() && !identifySummary.trim() && !identifyCharacters.trim()) {
@@ -770,55 +761,76 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
   const isFriend = (userId) => currentUser.friends.some(f => f.id === userId);
 
   const sendFriendRequest = async (toUser) => {
-    try {
-      const result = localStorage.getItem('friendRequests');
-      const allRequests = result ? JSON.parse(result) : [];
-      const newRequest = {
-        id: Date.now().toString(),
-        fromUserId: currentUser.id,
-        fromUsername: currentUser.username,
-        toUserId: toUser.id,
-        toUsername: toUser.username,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      };
-      await saveFriendRequests([...allRequests, newRequest]);
-      alert(`Demande envoyée à ${toUser.username} !`);
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  try {
+    await sendFriendRequestFirebase(
+      currentUser.id,
+      currentUser.username,
+      toUser.id,
+      toUser.username
+    );
+	
+	await notifyFriendRequest(toUser.id, currentUser.id, currentUser.username);
+	
+    alert(`Demande envoyée à ${toUser.username} ! ✅`);
+  } catch (error) {
+    console.error('Erreur demande ami:', error);
+    alert(error.message || 'Erreur lors de l\'envoi de la demande');
+  }
+};
 
   const acceptFriendRequest = async (request) => {
-    try {
-      const result = localStorage.getItem('friendRequests');
-      const allRequests = result ? JSON.parse(result) : [];
-      await saveFriendRequests(allRequests.map(req => req.id === request.id ? { ...req, status: 'accepted' } : req));
-      const fromUser = users.find(u => u.id === request.fromUserId);
-      const toUser = users.find(u => u.id === request.toUserId);
-      const updatedUsers = users.map(u => {
-        if (u.id === fromUser.id) return { ...u, friends: [...u.friends, { id: toUser.id, username: toUser.username, addedAt: new Date().toISOString() }] };
-        if (u.id === toUser.id) return { ...u, friends: [...u.friends, { id: fromUser.id, username: fromUser.username, addedAt: new Date().toISOString() }] };
-        return u;
-      });
-      await saveUsers(updatedUsers);
-      setCurrentUser(updatedUsers.find(u => u.id === currentUser.id));
-      alert(`Vous êtes ami avec ${fromUser.username} ! 🎉`);
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  try {
+    // Accepter la demande
+    await acceptFriendRequestFirebase(request.id, request.fromUserId, request.toUserId);
+    
+    // Ajouter aux amis mutuellement
+    await addFriend(currentUser.id, request.fromUserId, request.fromUsername);
+    await addFriend(request.fromUserId, currentUser.id, currentUser.username);
+    
+    await notifyFriendAccepted(request.fromUserId, currentUser.id, currentUser.username);
+	
+    // Recharger les demandes et l'utilisateur
+    await loadFriendRequests();
+    const updatedUser = await getUserData(currentUser.id);
+    if (updatedUser) setCurrentUser(updatedUser);
+    
+    alert(`${request.fromUsername} est maintenant votre ami ! 🎉`);
+  } catch (error) {
+    console.error('Erreur acceptation ami:', error);
+    alert('Erreur lors de l\'acceptation');
+  }
+};
 
   const rejectFriendRequest = async (request) => {
-    try {
-      const result = localStorage.getItem('friendRequests');
-      const allRequests = result ? JSON.parse(result) : [];
-      await saveFriendRequests(allRequests.map(req => req.id === request.id ? { ...req, status: 'rejected' } : req));
-      alert('Demande refusée');
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  try {
+    await rejectFriendRequestFirebase(request.id);
+    await loadFriendRequests();
+    alert('Demande refusée ❌');
+  } catch (error) {
+    console.error('Erreur refus ami:', error);
+    alert('Erreur lors du refus');
+  }
+};
+
+const removeFriend = async (friendId) => {
+  try {
+    // Retirer des deux côtés
+    await removeFriendFromUser(currentUser.id, friendId);
+    await removeFriendFromUser(friendId, currentUser.id);
+    
+    // Supprimer les demandes associées
+    await removeFriendFirebase(currentUser.id, friendId);
+    
+    // Recharger l'utilisateur
+    const updatedUser = await getUserData(currentUser.id);
+    if (updatedUser) setCurrentUser(updatedUser);
+    
+    alert('Ami retiré ❌');
+  } catch (error) {
+    console.error('Erreur suppression ami:', error);
+    alert('Erreur lors de la suppression');
+  }
+};
 
   const shareMovie = async (movie) => {
   if (!shareMessage.trim()) {
@@ -837,63 +849,226 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
   alert('Film partagé ! 🎬');
 };
 
-  const likePost = async (postId) => {
-  await likePostFirebase(postId, currentUser.id);
-  
-  // Recharger les posts
-  const allPosts = await getAllPosts();
-  setPosts(allPosts);
-};
-
-  const commentPost = async (postId) => {
-  const text = commentTexts[postId];
-  if (!text?.trim()) return;
-  
-  await addComment(postId, currentUser.id, currentUser.username, text);
-  
-  // Recharger les posts
-  const allPosts = await getAllPosts();
-  setPosts(allPosts);
-  
-  // Reset le champ de commentaire
-  setCommentTexts({ ...commentTexts, [postId]: '' });
-};
-
-  const sendChatMessage = async (friendId) => {
-    if (!chatMessage.trim()) return;
-    try {
-      const result = localStorage.getItem('chats');
-      const allChats = result ? JSON.parse(result) : [];
-      let chat = allChats.find(c => c.participants.includes(currentUser.id) && c.participants.includes(friendId));
-      const newMessage = {
-        id: Date.now().toString(),
-        senderId: currentUser.id,
-        senderUsername: currentUser.username,
-        text: chatMessage,
-        createdAt: new Date().toISOString()
-      };
-      if (chat) {
-        chat.messages.push(newMessage);
-        chat.lastMessage = chatMessage;
-        chat.lastMessageAt = new Date().toISOString();
-      } else {
-        const friend = users.find(u => u.id === friendId);
-        chat = {
-          id: Date.now().toString(),
-          participants: [currentUser.id, friendId],
-          participantNames: { [currentUser.id]: currentUser.username, [friendId]: friend.username },
-          messages: [newMessage],
-          lastMessage: chatMessage,
-          lastMessageAt: new Date().toISOString()
-        };
-        allChats.push(chat);
-      }
-      await saveChats(allChats);
-      setChatMessage('');
-    } catch (error) {
-      console.error(error);
+  const likePost = async (post) => {
+  try {
+    await likePostFirebase(post.id, currentUser.id);
+    
+    // AJOUTER CETTE LIGNE (ne pas notifier si on like son propre post)
+    if (post.userId !== currentUser.id) {
+      await notifyPostLike(post.userId, post.id, currentUser.id, currentUser.username);
     }
-  };
+    
+    await loadPosts();
+  } catch (error) {
+    console.error('Erreur like:', error);
+  }
+};
+
+  const commentPost = async (postId, text) => {
+  if (!text.trim()) return;
+  
+  try {
+    await addComment(postId, currentUser.id, currentUser.username, text);
+    
+    // Trouver le propriétaire du post
+    const post = posts.find(p => p.id === postId);
+    
+    // AJOUTER CES LIGNES (ne pas notifier si on commente son propre post)
+    if (post && post.userId !== currentUser.id) {
+      await notifyPostComment(post.userId, postId, currentUser.id, currentUser.username);
+    }
+    
+    const allPosts = await getAllPosts();
+    setPosts(allPosts);
+    
+    setCommentTexts({ ...commentTexts, [postId]: '' });
+  } catch (error) {
+    console.error('Erreur commentaire:', error);
+  }
+};
+
+  const sendChatMessage = async () => {
+  if (!chatMessage.trim() || !selectedChat) return;
+  
+  try {
+    // Trouver l'ID du destinataire
+    const recipientId = selectedChat.participants.find(p => p !== currentUser.id);
+    
+    await sendMessageFirebase(
+      selectedChat.id,
+      currentUser.id,
+      currentUser.username,
+      chatMessage,
+      recipientId
+    );
+    
+    setChatMessage('');
+    
+    // Recharger les chats et messages
+    await loadChats();
+    if (selectedChat?.id) {
+      const messages = await getChatMessages(selectedChat.id);
+      setSelectedChat({
+        ...selectedChat,
+        messages
+      });
+    }
+  } catch (error) {
+    console.error('Erreur envoi message:', error);
+    alert('Erreur lors de l\'envoi');
+  }
+};
+
+const startChat = async (friend) => {
+  try {
+    // Créer ou récupérer le chat
+    const chatId = await getOrCreateChat(
+      currentUser.id,
+      currentUser.username,
+      friend.id,
+      friend.username
+    );
+    
+    // Charger les messages
+    const messages = await getChatMessages(chatId);
+    
+    // Sélectionner le chat
+    setSelectedChat({
+      id: chatId,
+      participants: [currentUser.id, friend.id],
+      participantNames: {
+        [currentUser.id]: currentUser.username,
+        [friend.id]: friend.username
+      },
+      messages,
+      lastMessage: messages[messages.length - 1]?.text || '',
+      lastMessageAt: messages[messages.length - 1]?.createdAt || new Date().toISOString()
+    });
+    
+    setPage('chat');
+  } catch (error) {
+    console.error('Erreur création chat:', error);
+    alert('Erreur lors de l\'ouverture du chat');
+  }
+};
+
+const openChat = async (chat) => {
+  try {
+    // Charger les messages du chat
+    const messages = await getChatMessages(chat.id);
+    
+    setSelectedChat({
+      ...chat,
+      messages
+    });
+    
+    // Marquer comme lu
+    await markMessagesAsRead(chat.id, currentUser.id);
+    
+    // Recharger les chats pour mettre à jour unreadCount
+    await loadChats();
+    
+    setPage('chat');
+  } catch (error) {
+    console.error('Erreur ouverture chat:', error);
+  }
+};
+
+// Créer une liste
+const createList = async () => {
+  if (!newListName.trim()) {
+    alert('Entrez un nom de liste');
+    return;
+  }
+  
+  try {
+    await createListFirebase(currentUser.id, newListName);
+    
+    // Recharger les listes
+    const lists = await getUserLists(currentUser.id);
+    setCurrentUser({
+      ...currentUser,
+      lists: lists
+    });
+    
+    setNewListName('');
+    setShowCreateList(false);
+    alert('Liste créée ! ✅');
+  } catch (error) {
+    console.error('Erreur création liste:', error);
+    alert('Erreur lors de la création');
+  }
+};
+
+// Ajouter un film à une liste
+const addToList = async (listId, movie) => {
+  try {
+    await addMovieToListFirebase(listId, movie);
+    
+    // Recharger les listes
+    const lists = await getUserLists(currentUser.id);
+    setCurrentUser({
+      ...currentUser,
+      lists: lists
+    });
+    
+    alert('Film ajouté à la liste ! ✅');
+  } catch (error) {
+    console.error('Erreur ajout à liste:', error);
+    alert('Erreur lors de l\'ajout');
+  }
+};
+
+// Retirer un film d'une liste
+const removeFromList = async (listId, movie) => {
+  try {
+    await removeMovieFromListFirebase(listId, movie);
+    
+    // Recharger les listes
+    const lists = await getUserLists(currentUser.id);
+    setCurrentUser({
+      ...currentUser,
+      lists: lists
+    });
+    
+    alert('Film retiré de la liste ! ❌');
+  } catch (error) {
+    console.error('Erreur retrait de liste:', error);
+    alert('Erreur lors du retrait');
+  }
+};
+
+// Supprimer une liste
+const deleteList = async (listId) => {
+  if (!confirm('Supprimer cette liste ?')) return;
+  
+  try {
+    await deleteListFirebase(listId);
+    
+    // Recharger les listes
+    const lists = await getUserLists(currentUser.id);
+    setCurrentUser({
+      ...currentUser,
+      lists: lists
+    });
+    
+    alert('Liste supprimée ! 🗑️');
+  } catch (error) {
+    console.error('Erreur suppression liste:', error);
+    alert('Erreur lors de la suppression');
+  }
+};
+
+// Charger les listes au démarrage
+const loadLists = async () => {
+  if (!currentUser) return;
+  
+  const lists = await getUserLists(currentUser.id);
+  setCurrentUser({
+    ...currentUser,
+    lists: lists
+  });
+};
 
   const recommendMovieInChat = async (friendId, movie) => {
     const text = `🎬 Je te recommande : ${movie.title} (${movie.year}) - ${movie.rating}/10`;
@@ -1980,7 +2155,7 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
                 ) : (
                   <div className="space-y-2">
                     {currentUser.friends.map(f => (
-                      <button key={f.id} onClick={() => setSelectedChat(f)} className={`w-full p-3 rounded-lg text-left ${selectedChat?.id === f.id ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                      <button key={f.id} onClick={() => startChat(f)} className={`w-full p-3 rounded-lg text-left ${selectedChat?.id === f.id ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">{f.username.charAt(0).toUpperCase()}</div>
                           <p className="font-semibold">{f.username}</p>
@@ -1989,7 +2164,8 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
                     ))}
                   </div>
                 )}
-              </div>
+              </div>          
+              {/* Zone de chat (colonne de droite) */}
               <div className="md:col-span-2 bg-gray-800 bg-opacity-50 rounded-2xl p-6">
                 {!selectedChat ? (
                   <div className="h-full flex items-center justify-center text-gray-400">
@@ -2000,50 +2176,66 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
                   </div>
                 ) : (
                   <div className="h-full flex flex-col">
+                    {/* Header du chat */}
                     <div className="flex items-center gap-3 pb-4 border-b border-gray-700 mb-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-xl">{selectedChat.username.charAt(0).toUpperCase()}</div>
-                      <p className="font-semibold">{selectedChat.username}</p>
-                    </div>
-                    <div className="flex-1 overflow-y-auto mb-4 space-y-3">
                       {(() => {
-                        const chat = chats.find(c => c.participants.includes(selectedChat.id));
-                        if (!chat || chat.messages.length === 0) {
-                          return <p className="text-gray-400 text-center py-8">Aucun message</p>;
-                        }
-                        return chat.messages.map(msg => {
+                        const otherParticipantId = selectedChat.participants?.find(p => p !== currentUser.id);
+                        const otherParticipantName = selectedChat.participantNames?.[otherParticipantId] || 'Utilisateur';
+                        
+                        return (
+                          <>
+                            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-xl">
+                              {otherParticipantName.charAt(0).toUpperCase()}
+                            </div>
+                            <p className="font-semibold">{otherParticipantName}</p>
+                          </>
+                        );
+                      })()}
+                    </div>
+                    
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto mb-4 space-y-3">
+                      {(!selectedChat.messages || selectedChat.messages.length === 0) ? (
+                        <p className="text-gray-400 text-center py-8">Aucun message</p>
+                      ) : (
+                        selectedChat.messages.map(msg => {
                           const isMe = msg.senderId === currentUser.id;
                           return (
                             <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                               <div className={`max-w-xs p-3 rounded-lg ${isMe ? 'bg-purple-600' : 'bg-gray-700'}`}>
-                                {msg.movie && (
-                                  <div className="bg-black bg-opacity-30 rounded p-2 mb-2 text-sm">
-                                    <p className="font-bold">{msg.movie.title}</p>
-                                    <p className="text-xs">{msg.movie.year} • ⭐ {msg.movie.rating}</p>
-                                  </div>
+                                {!isMe && msg.senderUsername && (
+                                  <p className="text-xs text-gray-400 mb-1">{msg.senderUsername}</p>
                                 )}
                                 <p className="text-sm">{msg.text}</p>
-                                <p className="text-xs text-gray-400 mt-1">{new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {new Date(msg.createdAt).toLocaleTimeString('fr-FR', { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}
+                                </p>
                               </div>
                             </div>
                           );
-                        });
-                      })()}
+                        })
+                      )}
                     </div>
-                    {currentUser.likedMovies.length > 0 && (
-                      <div className="mb-3">
-                        <details className="bg-gray-700 bg-opacity-50 rounded-lg">
-                          <summary className="p-2 cursor-pointer text-sm text-purple-400">🎬 Recommander un film</summary>
-                          <div className="p-2 space-y-2 max-h-40 overflow-y-auto">
-                            {currentUser.likedMovies.map((m, i) => (
-                              <button key={i} onClick={() => recommendMovieInChat(selectedChat.id, m)} className="w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">{m.title} ({m.year})</button>
-                            ))}
-                          </div>
-                        </details>
-                      </div>
-                    )}
+                    
+                    {/* Input message */}
                     <div className="flex gap-2">
-                      <input type="text" value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && sendChatMessage(selectedChat.id)} placeholder="Message..." className="flex-1 p-3 bg-gray-700 rounded-lg border border-gray-600" />
-                      <button onClick={() => sendChatMessage(selectedChat.id)} className="bg-purple-600 px-6 py-3 rounded-lg"><Send className="w-5 h-5" /></button>
+                      <input
+                        type="text"
+                        value={chatMessage}
+                        onChange={(e) => setChatMessage(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                        placeholder="Écrivez un message..."
+                        className="flex-1 p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                      />
+                      <button 
+                        onClick={sendChatMessage} 
+                        className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg transition"
+                      >
+                        <Send className="w-5 h-5" />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -2051,6 +2243,8 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
             </div>
           </div>
         )}
+                    
+				
 
         {page === 'profile' && (
           <div>
