@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Film, Home, Users, MessageCircle, Search, Heart, LogOut, User, Send, Sparkles } from 'lucide-react';
+import { signUp, signIn, signOut as firebaseSignOut, onAuthChange, getUserData } from './services/authService';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from './config/firebase';
+import { addToLikedMovies, addToWatchedMovies, addOrUpdateRating } from './services/userService';
+import { searchMovie } from './services/movieService';
+import { createPost, getAllPosts, likePost, addComment } from './services/postService';
+
+
 
 const CineMatchApp = () => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -71,6 +79,22 @@ const CineMatchApp = () => {
     }
   }, [currentUser]);
 
+// Observer l'état de connexion Firebase
+useEffect(() => {
+  const unsubscribe = onAuthChange(async (firebaseUser) => {
+    if (firebaseUser) {
+      const userData = await getUserData(firebaseUser.uid);
+      if (userData) {
+        setCurrentUser(userData);
+      }
+    } else {
+      setCurrentUser(null);
+    }
+  });
+
+  return () => unsubscribe();
+}, []);
+
   const loadUsers = async () => {
     try {
       const result = localStorage.getItem('users');
@@ -105,13 +129,9 @@ const CineMatchApp = () => {
   };
 
   const loadPosts = async () => {
-    try {
-      const result = localStorage.getItem('posts');
-      if (result) setPosts(JSON.parse(result));
-    } catch (error) {
-      console.log('Aucun post');
-    }
-  };
+  const allPosts = await getAllPosts();
+  setPosts(allPosts);
+};
 
   const savePosts = async (updatedPosts) => {
     localStorage.setItem('posts', JSON.stringify(updatedPosts));
@@ -136,51 +156,39 @@ const CineMatchApp = () => {
   };
 
   const handleSignup = async () => {
-    if (!signupUsername || !signupEmail || !signupPassword) {
-      alert('Veuillez remplir tous les champs');
-      return;
-    }
-    if (users.some(u => u.email === signupEmail)) {
-      alert('Cet email est déjà utilisé');
-      return;
-    }
-    const newUser = {
-      id: Date.now().toString(),
-      username: signupUsername,
-      email: signupEmail,
-      password: signupPassword,
-      likedMovies: [],
-      watchedMovies: [],
-      friends: [],
-      lists: [],
-      ratings: [],
-      badges: [],
-      profilePic: null,
-      banner: null,
-      createdAt: new Date().toISOString()
-    };
-    await saveUsers([...users, newUser]);
-    setCurrentUser(newUser);
+  try {
+    const userData = await signUp(signupEmail, signupPassword, signupUsername);
+    setCurrentUser(userData);
     setPage('home');
-    alert('Compte créé ! 🎉');
-  };
+    setSignupEmail('');
+    setSignupPassword('');
+    setSignupUsername('');
+  } catch (error: any) {
+    alert(error.message || 'Erreur lors de l\'inscription');
+  }
+};
 
-  const handleLogin = () => {
-    const user = users.find(u => u.email === loginEmail && u.password === loginPassword);
-    if (user) {
-      setCurrentUser(user);
-      setPage('home');
-    } else {
-      alert('Email ou mot de passe incorrect');
-    }
-  };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setPage('login');
+  const handleLogin = async () => {
+  try {
+    const userData = await signIn(loginEmail, loginPassword);
+    setCurrentUser(userData);
+    setPage('home');
     setLoginEmail('');
     setLoginPassword('');
-  };
+  } catch (error: any) {
+    alert('Email ou mot de passe incorrect');
+  }
+};
+
+  const handleLogout = async () => {
+  try {
+    await firebaseSignOut();
+    setCurrentUser(null);
+    setPage('login');
+  } catch (error) {
+    console.error('Erreur déconnexion:', error);
+  }
+};
 
   const getAIRecommendation = async () => {
     if (!mediaType) {
@@ -244,43 +252,50 @@ Réponds UNIQUEMENT en JSON (sans markdown, sans backticks):
     }
   };
 
-  const likeMovie = async (movie) => {
-    const alreadyLiked = currentUser.likedMovies.some(m => 
-      m.title.toLowerCase() === movie.title.toLowerCase() && 
-      m.year === movie.year
-    );
-    
-    if (alreadyLiked) {
-      const mediaLabel = movie.type === 'serie' ? 'série' : 'film';
-      alert(`Ce${movie.type === 'serie' ? 'tte' : ''} ${mediaLabel} est déjà dans vos favoris ! ❤️`);
-      return;
-    }
-    
-    const updatedUser = { ...currentUser, likedMovies: [...currentUser.likedMovies, { ...movie, likedAt: new Date().toISOString() }] };
-    await saveUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
-    setCurrentUser(updatedUser);
+ const likeMovie = async (movie) => {
+  const alreadyLiked = currentUser.likedMovies.some(m => 
+    m.title.toLowerCase() === movie.title.toLowerCase() && 
+    m.year === movie.year
+  );
+  
+  if (alreadyLiked) {
     const mediaLabel = movie.type === 'serie' ? 'série' : 'film';
-    alert(`${movie.type === 'serie' ? 'Série' : 'Film'} ajouté${movie.type === 'serie' ? 'e' : ''} aux favoris ! ❤️`);
-  };
+    alert(`Ce${movie.type === 'serie' ? 'tte' : ''} ${mediaLabel} est déjà dans vos favoris ! ❤️`);
+    return;
+  }
+  
+  const movieWithTimestamp = { ...movie, likedAt: new Date().toISOString() };
+  await addToLikedMovies(currentUser.id, movieWithTimestamp);
+  
+  // Recharger les données utilisateur
+  const updatedUser = await getUserData(currentUser.id);
+  if (updatedUser) setCurrentUser(updatedUser);
+  
+  const mediaLabel = movie.type === 'serie' ? 'série' : 'film';
+  alert(`${movie.type === 'serie' ? 'Série' : 'Film'} ajouté${movie.type === 'serie' ? 'e' : ''} aux favoris ! ❤️`);
+};
 
   const markAsWatched = async (movie) => {
-    const alreadyWatched = currentUser.watchedMovies?.some(m => 
-      m.title.toLowerCase() === movie.title.toLowerCase() && 
-      m.year === movie.year
-    );
-    
-    if (alreadyWatched) {
-      const mediaLabel = movie.type === 'serie' ? 'série' : 'film';
-      alert(`Ce${movie.type === 'serie' ? 'tte' : ''} ${mediaLabel} est déjà marqué${movie.type === 'serie' ? 'e' : ''} comme vu${movie.type === 'serie' ? 'e' : ''} !`);
-      return;
-    }
-    
-    const watchedMovies = currentUser.watchedMovies || [];
-    const updatedUser = { ...currentUser, watchedMovies: [...watchedMovies, { ...movie, watchedAt: new Date().toISOString() }] };
-    await saveUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
-    setCurrentUser(updatedUser);
-    alert('Marqué comme vu ! ✓ L\'IA ne le proposera plus.');
-  };
+  const alreadyWatched = currentUser.watchedMovies?.some(m => 
+    m.title.toLowerCase() === movie.title.toLowerCase() && 
+    m.year === movie.year
+  );
+  
+  if (alreadyWatched) {
+    const mediaLabel = movie.type === 'serie' ? 'série' : 'film';
+    alert(`Ce${movie.type === 'serie' ? 'tte' : ''} ${mediaLabel} est déjà marqué${movie.type === 'serie' ? 'e' : ''} comme vu${movie.type === 'serie' ? 'e' : ''} !`);
+    return;
+  }
+  
+  const movieWithTimestamp = { ...movie, watchedAt: new Date().toISOString() };
+  await addToWatchedMovies(currentUser.id, movieWithTimestamp);
+  
+  // Recharger les données utilisateur
+  const updatedUser = await getUserData(currentUser.id);
+  if (updatedUser) setCurrentUser(updatedUser);
+  
+  alert('Marqué comme vu ! ✓ L\'IA ne le proposera plus.');
+};
 
   // Créer une liste
   const createList = async () => {
@@ -335,22 +350,16 @@ Réponds UNIQUEMENT en JSON (sans markdown, sans backticks):
 
   // Noter un film
   const rateMovie = async (movie, rating) => {
-    const ratings = currentUser.ratings || [];
-    const existingIndex = ratings.findIndex(r => r.title === movie.title && r.year === movie.year);
-    let updatedRatings;
-    if (existingIndex >= 0) {
-      updatedRatings = [...ratings];
-      updatedRatings[existingIndex] = { ...movie, userRating: rating, ratedAt: new Date().toISOString() };
-    } else {
-      updatedRatings = [...ratings, { ...movie, userRating: rating, ratedAt: new Date().toISOString() }];
-    }
-    const updatedUser = { ...currentUser, ratings: updatedRatings };
-    await saveUsers(users.map(u => u.id === currentUser.id ? updatedUser : u));
-    setCurrentUser(updatedUser);
-    setRatingMovie(null);
-    setUserRating(0);
-    alert(`Noté ${rating}/10 ! ⭐`);
-  };
+  await addOrUpdateRating(currentUser.id, movie.id || movie.title, rating);
+  
+  // Recharger les données utilisateur
+  const updatedUser = await getUserData(currentUser.id);
+  if (updatedUser) setCurrentUser(updatedUser);
+  
+  setRatingMovie(null);
+  setUserRating(0);
+  alert(`Noté ${rating}/10 ! ⭐`);
+};
 
   // Obtenir la note utilisateur
   const getUserRating = (movie) => {
@@ -613,45 +622,26 @@ Réponds en JSON :
   };
 
   const searchMedia = async () => {
-    if (!searchTerm.trim()) {
-      alert('Veuillez entrer un titre de film ou série');
-      return;
-    }
-    setIsSearching(true);
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1500,
-          messages: [{
-            role: "user",
-            content: `Recherche le film ou la série "${searchTerm}". Réponds UNIQUEMENT en JSON (sans markdown, sans backticks):
-{
-  "title": "Titre exact",
-  "year": "Année",
-  "director": "Réalisateur ou Créateur",
-  "actors": "Acteurs principaux",
-  "synopsis": "Synopsis en 2-3 phrases",
-  "rating": "Note/10",
-  "type": "film ou serie",
-  "seasons": "Nombre de saisons (seulement si série)"
-}`
-          }]
-        })
-      });
-      const data = await response.json();
-      const text = data.content.find(i => i.type === "text")?.text || "";
-      const result = JSON.parse(text.replace(/```json|```/g, "").trim());
+  if (!searchTerm.trim()) {
+    alert('Veuillez entrer un titre de film ou série');
+    return;
+  }
+  setIsSearching(true);
+  try {
+    const result = await searchMovie(searchTerm);
+    if (result) {
       setMediaSearchResults([result]);
-    } catch (error) {
+    } else {
       alert('Aucun résultat trouvé');
       setMediaSearchResults([]);
-    } finally {
-      setIsSearching(false);
     }
-  };
+  } catch (error) {
+    alert('Erreur lors de la recherche');
+    setMediaSearchResults([]);
+  } finally {
+    setIsSearching(false);
+  }
+};
 
   const searchUsers = () => {
     if (!userSearchQuery.trim()) {
@@ -771,77 +761,43 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
   };
 
   const shareMovie = async (movie) => {
-    if (!shareMessage.trim()) {
-      alert('Veuillez ajouter un message');
-      return;
-    }
-    try {
-      const result = localStorage.getItem('posts');
-      const allPosts = result ? JSON.parse(result) : [];
-      const newPost = {
-        id: Date.now().toString(),
-        userId: currentUser.id,
-        username: currentUser.username,
-        movie: movie,
-        message: shareMessage,
-        likes: [],
-        comments: [],
-        createdAt: new Date().toISOString()
-      };
-      await savePosts([newPost, ...allPosts]);
-      setShareMessage('');
-      setSharingMovie(null);
-      setPage('feed');
-      alert('Film partagé ! 🎉');
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  if (!shareMessage.trim()) {
+    alert('Veuillez écrire un message');
+    return;
+  }
+  
+  await createPost(currentUser.id, currentUser.username, movie, shareMessage);
+  
+  // Recharger les posts
+  const allPosts = await getAllPosts();
+  setPosts(allPosts);
+  
+  setSharingMovie(null);
+  setShareMessage('');
+  alert('Film partagé ! 🎬');
+};
 
-  const likePost = async (postId) => {
-    try {
-      const result = localStorage.getItem('posts');
-      const allPosts = result ? JSON.parse(result) : [];
-      await savePosts(allPosts.map(post => {
-        if (post.id === postId) {
-          const hasLiked = post.likes.includes(currentUser.id);
-          return { ...post, likes: hasLiked ? post.likes.filter(id => id !== currentUser.id) : [...post.likes, currentUser.id] };
-        }
-        return post;
-      }));
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  const togglePostLike = async (postId) => {
+  await likePost(postId, currentUser.id);
+  
+  // Recharger les posts
+  const allPosts = await getAllPosts();
+  setPosts(allPosts);
+};
 
   const commentPost = async (postId) => {
-    const text = commentTexts[postId];
-    if (!text?.trim()) return;
-    try {
-      const result = localStorage.getItem('posts');
-      const allPosts = result ? JSON.parse(result) : [];
-      await savePosts(allPosts.map(post => {
-        if (post.id === postId) {
-          return {
-            ...post,
-            comments: [...post.comments, {
-              id: Date.now().toString(),
-              userId: currentUser.id,
-              username: currentUser.username,
-              text: text,
-              privacy: commentPrivacy,
-              createdAt: new Date().toISOString()
-            }]
-          };
-        }
-        return post;
-      }));
-      setCommentTexts({ ...commentTexts, [postId]: '' });
-      alert('Commentaire ajouté !');
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  const text = commentTexts[postId];
+  if (!text?.trim()) return;
+  
+  await addComment(postId, currentUser.id, currentUser.username, text);
+  
+  // Recharger les posts
+  const allPosts = await getAllPosts();
+  setPosts(allPosts);
+  
+  // Reset le champ de commentaire
+  setCommentTexts({ ...commentTexts, [postId]: '' });
+};
 
   const sendChatMessage = async (friendId) => {
     if (!chatMessage.trim()) return;
