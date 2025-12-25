@@ -5,8 +5,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './config/firebase';
 import { addToLikedMovies, addToWatchedMovies, addOrUpdateRating } from './services/userService';
 import { searchMovie } from './services/movieService';
-import { createPost, getAllPosts, likePost, addComment } from './services/postService';
-
+import { createPost, getAllPosts, likePost as likePostFirebase, addComment } from './services/postService';
 
 
 const CineMatchApp = () => {
@@ -777,8 +776,8 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
   alert('Film partagé ! 🎬');
 };
 
-  const togglePostLike = async (postId) => {
-  await likePost(postId, currentUser.id);
+  const likePost = async (postId) => {
+  await likePostFirebase(postId, currentUser.id);
   
   // Recharger les posts
   const allPosts = await getAllPosts();
