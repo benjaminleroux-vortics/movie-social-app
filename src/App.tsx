@@ -382,38 +382,39 @@ IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
     return rating ? rating.userRating : null;
   };
 
-  // Recommandations intelligentes basées sur l'historique
-  const getSmartRecommendation = async () => {
-    const likedMovies = currentUser.likedMovies || [];
-    const ratings = currentUser.ratings || [];
-    
-    if (likedMovies.length === 0 && ratings.length === 0) {
-      alert('Aimez ou notez des films d\'abord pour des recommandations personnalisées !');
-      return;
-    }
+ // Recommandations intelligentes basées sur l'historique
+ const getSmartRecommendation = async () => {
+  const likedMovies = currentUser.likedMovies || [];
+  const ratings = currentUser.ratings || [];
+  
+  if (likedMovies.length === 0 && ratings.length === 0) {
+    alert('Aimez ou notez des films d\'abord pour des recommandations personnalisées !');
+    return;
+  }
 
-    setIsLoading(true);
-    try {
-      const topRated = ratings.filter(r => r.userRating >= 8).slice(0, 3);
-      const favorites = likedMovies.slice(0, 3);
-      
-      const historyText = `
+  setIsLoading(true);
+  try {
+    const topRated = ratings.filter(r => r.userRating >= 8).slice(0, 3);
+    const favorites = likedMovies.slice(0, 3);
+    
+    const historyText = `
 Films aimés : ${favorites.map(m => `${m.title} (${m.year})`).join(', ')}
 Films bien notés : ${topRated.map(m => `${m.title} (${m.year}) - Note: ${m.userRating}/10`).join(', ')}
-      `.trim();
+    `.trim();
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{
-            role: "user",
-            content: `Analyse l'historique de cet utilisateur et recommande un film/série qu'il n'a pas encore vu :
+    const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Analyse l'historique de cet utilisateur et recommande un film/série qu'il n'a pas encore vu :
 ${historyText}
 
-Réponds en JSON :
+Réponds UNIQUEMENT en JSON valide (sans markdown, sans backticks, sans commentaires) :
 {
   "title": "Titre",
   "year": "Année",
@@ -423,57 +424,88 @@ Réponds en JSON :
   "why": "Pourquoi basé sur l'historique (2 phrases)",
   "rating": "Note/10",
   "type": "film ou serie",
-  "seasons": "Saisons si série"
-}`
+  "seasons": "Saisons si série, sinon null"
+}
+
+IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
           }]
-        })
-      });
-      const data = await response.json();
-      const text = data.content.find(i => i.type === "text")?.text || "";
-      setAiRecommendation(JSON.parse(text.replace(/```json|```/g, "").trim()));
-      setPage('ai');
-    } catch (error) {
-      alert('Erreur lors de la recommandation');
-    } finally {
-      setIsLoading(false);
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Erreur API Gemini');
     }
-  };
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    // Nettoyer la réponse
+    const cleanedText = text.replace(/```json|```/g, "").trim();
+    
+    const recommendation = JSON.parse(cleanedText);
+    setAiRecommendation(recommendation);
+    setPage('ai');
+  } catch (error) {
+    console.error('Erreur recommandation intelligente:', error);
+    alert('Erreur lors de la recommandation. Veuillez réessayer.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Obtenir les prochaines sorties
   const getUpcomingReleases = async () => {
-    setIsLoadingReleases(true);
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 2000,
-          messages: [{
-            role: "user",
-            content: `Liste 5 films ou séries qui sortent prochainement (dans les 3 prochains mois) en 2024-2025. Réponds en JSON array :
+  setIsLoadingReleases(true);
+  try {
+    const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Liste 5 films ou séries qui sortent prochainement (dans les 3 prochains mois) en 2024-2025. 
+
+Réponds UNIQUEMENT avec un tableau JSON valide (sans markdown, sans backticks, sans commentaires) :
 [
   {
     "title": "Titre",
-    "releaseDate": "Date de sortie",
+    "releaseDate": "Date de sortie (format: YYYY-MM-DD)",
     "type": "film ou serie",
-    "director": "Réalisateur",
-    "synopsis": "Court synopsis",
-    "genre": "Genre"
+    "director": "Réalisateur ou Créateur",
+    "synopsis": "Court synopsis en 1-2 phrases",
+    "genre": "Genre principal"
   }
-]`
+]
+
+IMPORTANT: Réponds UNIQUEMENT avec le tableau JSON, rien d'autre. Exactement 5 résultats.`
           }]
-        })
-      });
-      const data = await response.json();
-      const text = data.content.find(i => i.type === "text")?.text || "";
-      setUpcomingReleases(JSON.parse(text.replace(/```json|```/g, "").trim()));
-    } catch (error) {
-      alert('Erreur lors du chargement');
-    } finally {
-      setIsLoadingReleases(false);
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Erreur API Gemini');
     }
-  };
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    // Nettoyer la réponse
+    const cleanedText = text.replace(/```json|```/g, "").trim();
+    
+    const releases = JSON.parse(cleanedText);
+    setUpcomingReleases(releases);
+  } catch (error) {
+    console.error('Erreur sorties cinéma:', error);
+    alert('Erreur lors du chargement des sorties. Veuillez réessayer.');
+  } finally {
+    setIsLoadingReleases(false);
+  }
+};
 
   // Charger les notifications
   const loadNotifications = async () => {
@@ -666,13 +698,13 @@ Réponds en JSON :
   };
 
   const identifyMedia = async () => {
-    if (!identifyDescription.trim() && !identifyActor.trim() && !identifyYear.trim() && !identifyGenre.trim() && !identifyLocation.trim() && !identifySummary.trim() && !identifyCharacters.trim()) {
-      alert('Veuillez renseigner au moins un critère');
-      return;
-    }
-    setIsIdentifying(true);
-    try {
-      const criteria = `
+  if (!identifyDescription.trim() && !identifyActor.trim() && !identifyYear.trim() && !identifyGenre.trim() && !identifyLocation.trim() && !identifySummary.trim() && !identifyCharacters.trim()) {
+    alert('Veuillez renseigner au moins un critère');
+    return;
+  }
+  setIsIdentifying(true);
+  try {
+    const criteria = `
 ${identifyDescription ? `Description/Scène : ${identifyDescription}` : ''}
 ${identifyActor ? `Acteur/Actrice : ${identifyActor}` : ''}
 ${identifyYear ? `Année approximative : ${identifyYear}` : ''}
@@ -680,20 +712,21 @@ ${identifyGenre ? `Genre : ${identifyGenre}` : ''}
 ${identifyLocation ? `Lieu/Décor : ${identifyLocation}` : ''}
 ${identifySummary ? `Résumé/Intrigue : ${identifySummary}` : ''}
 ${identifyCharacters ? `Noms des personnages : ${identifyCharacters}` : ''}
-      `.trim();
+    `.trim();
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1500,
-          messages: [{
-            role: "user",
-            content: `Un utilisateur essaie d'identifier un film ou une série avec ces indices :
+    const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Un utilisateur essaie d'identifier un film ou une série avec ces indices :
 ${criteria}
 
-Analyse ces informations et identifie le film ou la série le plus probable. Réponds UNIQUEMENT en JSON (sans markdown, sans backticks) :
+Analyse ces informations et identifie le film ou la série le plus probable. Réponds UNIQUEMENT en JSON valide (sans markdown, sans backticks, sans commentaires) :
 {
   "title": "Titre identifié",
   "year": "Année",
@@ -702,24 +735,37 @@ Analyse ces informations et identifie le film ou la série le plus probable. Ré
   "synopsis": "Synopsis en 2-3 phrases",
   "rating": "Note/10",
   "type": "film ou serie",
-  "seasons": "Nombre de saisons (si série)",
+  "seasons": "Nombre de saisons (si série, sinon null)",
   "confidence": "Niveau de confiance (élevé/moyen/faible)",
   "why": "Pourquoi cette identification correspond (1-2 phrases)"
-}`
+}
+
+IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
           }]
-        })
-      });
-      const data = await response.json();
-      const text = data.content.find(i => i.type === "text")?.text || "";
-      const result = JSON.parse(text.replace(/```json|```/g, "").trim());
-      setIdentifyResult(result);
-    } catch (error) {
-      alert('Impossible d\'identifier. Essayez avec plus de détails.');
-      setIdentifyResult(null);
-    } finally {
-      setIsIdentifying(false);
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Erreur API Gemini');
     }
-  };
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    // Nettoyer la réponse
+    const cleanedText = text.replace(/```json|```/g, "").trim();
+    
+    const result = JSON.parse(cleanedText);
+    setIdentifyResult(result);
+  } catch (error) {
+    console.error('Erreur identification:', error);
+    alert('Impossible d\'identifier. Essayez avec plus de détails.');
+    setIdentifyResult(null);
+  } finally {
+    setIsIdentifying(false);
+  }
+};
 
   const isFriend = (userId) => currentUser.friends.some(f => f.id === userId);
 
