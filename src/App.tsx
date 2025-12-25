@@ -190,43 +190,44 @@ useEffect(() => {
 };
 
   const getAIRecommendation = async () => {
-    if (!mediaType) {
-      alert('Veuillez choisir si vous cherchez un film ou une série');
-      return;
-    }
-    if (!mood && !genre && !actor && !duration && !era && !watchWith) {
-      alert('Veuillez renseigner au moins un critère');
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const mediaLabel = mediaType === 'film' ? 'film' : 'série';
-      
-      // Liste des films/séries déjà vus pour éviter de les proposer
-      const watchedTitles = currentUser.watchedMovies.map(m => m.title).join(', ');
-      const excludeText = watchedTitles ? `\nNe propose PAS ces ${mediaLabel}s déjà vus : ${watchedTitles}` : '';
-      
-      const criteriaText = `
+  if (!mediaType) {
+    alert('Veuillez choisir si vous cherchez un film ou une série');
+    return;
+  }
+  if (!mood && !genre && !actor && !duration && !era && !watchWith) {
+    alert('Veuillez renseigner au moins un critère');
+    return;
+  }
+  setIsLoading(true);
+  try {
+    const mediaLabel = mediaType === 'film' ? 'film' : 'série';
+    
+    // Liste des films/séries déjà vus pour éviter de les proposer
+    const watchedTitles = currentUser.watchedMovies.map(m => m.title).join(', ');
+    const excludeText = watchedTitles ? `\nNe propose PAS ces ${mediaLabel}s déjà vus : ${watchedTitles}` : '';
+    
+    const criteriaText = `
 ${mood ? `- Humeur: ${mood}` : ''}
 ${genre ? `- Genre: ${genre}` : ''}
 ${actor ? `- Acteur préféré: ${actor}` : ''}
 ${duration ? `- Durée: ${duration}` : ''}
 ${era ? `- Période: ${era}` : ''}
 ${watchWith ? `- Regarder avec: ${watchWith}` : ''}${excludeText}
-      `.trim();
+    `.trim();
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{
-            role: "user",
-            content: `Tu es un expert en recommandation de ${mediaLabel}s. Un utilisateur recherche un${mediaType === 'film' ? '' : 'e'} ${mediaLabel} avec ces critères:
+    const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Tu es un expert en recommandation de ${mediaLabel}s. Un utilisateur recherche un${mediaType === 'film' ? '' : 'e'} ${mediaLabel} avec ces critères:
 ${criteriaText}
 
-Réponds UNIQUEMENT en JSON (sans markdown, sans backticks):
+Réponds UNIQUEMENT en JSON valide (sans markdown, sans backticks, sans commentaires):
 {
   "title": "Titre du ${mediaLabel}",
   "year": "Année",
@@ -237,19 +238,33 @@ Réponds UNIQUEMENT en JSON (sans markdown, sans backticks):
   "rating": "Note/10",
   "type": "${mediaType}"
   ${mediaType === 'serie' ? ',"seasons": "Nombre de saisons"' : ''}
-}`
+}
+
+IMPORTANT: Réponds UNIQUEMENT avec le JSON, rien d'autre.`
           }]
-        })
-      });
-      const data = await response.json();
-      const text = data.content.find(i => i.type === "text")?.text || "";
-      setAiRecommendation(JSON.parse(text.replace(/```json|```/g, "").trim()));
-    } catch (error) {
-      alert('Erreur lors de la recommandation');
-    } finally {
-      setIsLoading(false);
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Erreur API Gemini');
     }
-  };
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    // Nettoyer la réponse
+    const cleanedText = text.replace(/```json|```/g, "").trim();
+    
+    const recommendation = JSON.parse(cleanedText);
+    setAiRecommendation(recommendation);
+  } catch (error) {
+    console.error('Erreur recommandation:', error);
+    alert('Erreur lors de la recommandation. Veuillez réessayer.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
  const likeMovie = async (movie) => {
   const alreadyLiked = currentUser.likedMovies.some(m => 
